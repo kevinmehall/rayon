@@ -1,20 +1,23 @@
 #![feature(unsafe_destructor)]
+#![allow(unstable)]
 
-use std::any::Any;
-use std::kinds::marker;
+use std::marker;
 use std::mem::transmute;
+use std::thread::{ Thread, JoinGuard };
 use std::raw;
-use std::sync::Future;
-use std::task;
 
 mod test;
 
-pub type TaskBody<'s> = ||:Sync+'s;
+pub type TaskBody<'s> = &'s mut (FnMut() + Sync + 's);
 
 pub struct Section<'s> {
     marker: marker::ContravariantLifetime<'s>,
-    tasks: Vec<Future<Result<(), Box<Any+Send>>>>
+    tasks: Vec<JoinGuard<'s, ()>>
 }
+
+pub struct RawClosurePtr(*mut raw::Closure);
+impl Copy for RawClosurePtr {}
+unsafe impl Send for RawClosurePtr {}
 
 pub fn execute<'s>(closures: &'s mut [TaskBody<'s>]) {
     let mut join = Section::new();
@@ -32,13 +35,13 @@ impl<'s> Section<'s> {
 
     pub fn fork(&mut self, body: &'s mut TaskBody<'s>) {
         unsafe {
-            let body: *mut raw::Closure = transmute(body);
+            let body: RawClosurePtr = transmute(body);
 
             // really don't want the `push` below to fail
             // after task has been spawned
             self.tasks.reserve(1);
 
-            let future = task::try_future(proc() {
+            let future = Thread::scoped(move || {
                 let body: &mut TaskBody = transmute(body);
                 (*body)()
             });
@@ -53,10 +56,10 @@ impl<'s> Section<'s> {
             match self.tasks.pop() {
                 None => { break; }
                 Some(task) => {
-                    // propoagate any failure
-                    match task.unwrap() {
+                    // propagate any failure
+                    match task.join() {
                         Ok(()) => { }
-                        Err(_) => { panic!() }
+                        Err(e) => { panic!(e) }
                     }
                 }
             }
@@ -70,4 +73,3 @@ impl<'s> Drop for Section<'s> {
         self.sync();
     }
 }
-

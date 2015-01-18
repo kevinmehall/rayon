@@ -4,18 +4,18 @@ use super::{execute};
 
 #[test]
 fn use_it() {
-    let mut left: int = 0;
-    let mut right: int = 0;
+    let mut left: i32 = 0;
+    let mut right: i32 = 0;
     execute(&mut [
-        || left = 22,
-        || right = 44
+        &mut || left = 22,
+        &mut || right = 44
     ]);
     assert_eq!(left, 22);
     assert_eq!(right, 44);
 }
 
 #[cfg(test)]
-fn quicksort(v: &mut [int]) {
+fn quicksort(v: &mut [i32]) {
     if v.len() <= 1 {
         return;
     }
@@ -24,13 +24,13 @@ fn quicksort(v: &mut [int]) {
     let mid = partition(pivot_value, v);
     let (left, right) = v.split_at_mut(mid);
     execute(&mut [
-        || quicksort(left),
-        || quicksort(right)
+        &mut || quicksort(left),
+        &mut || quicksort(right)
     ]);
 
-    fn partition(pivot_value: int,
-                 v: &mut [int])
-                 -> uint
+    fn partition(pivot_value: i32,
+                 v: &mut [i32])
+                 -> usize
     {
         // Invariant:
         //     .. l ==> less than or equal to pivot
@@ -66,11 +66,11 @@ fn call_quicksort() {
 
 // #[test]
 // fn use_it_bad() {
-//     let mut left: int = 0;
-//     let mut right: int = 0;
+//     let mut left: i32 = 0;
+//     let mut right: i32 = 0;
 //     execute(&mut [
-//         || left = 22,
-//         || left = 44  //~ ERROR cannot borrow `left` as mutable more than once
+//         &mut || left = 22,
+//         &mut || left = 44  //~ cannot borrow `left` as mutable more than once at a time
 //     ]);
 //     assert_eq!(left, 22);
 //     assert_eq!(right, 44);
